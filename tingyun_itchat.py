@@ -3,17 +3,38 @@
 import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
-import sys,os
 import re
 import requests
 import itchat
-import time
 from itchat.content import *
-import chardet
 import logging
 import commands
 import random
+from pyquery import PyQuery
+import urllib
+import os
 import json
+import chardet
+user_agent_list = [
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/22.0.1207.1 Safari/537.1"
+        "Mozilla/5.0 (X11; CrOS i686 2268.111.0) AppleWebKit/536.11 (KHTML, like Gecko) Chrome/20.0.1132.57 Safari/536.11",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/536.6 (KHTML, like Gecko) Chrome/20.0.1092.0 Safari/536.6",
+        "Mozilla/5.0 (Windows NT 6.2) AppleWebKit/536.6 (KHTML, like Gecko) Chrome/20.0.1090.0 Safari/536.6",
+        "Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.1 (KHTML, like Gecko) Chrome/19.77.34.5 Safari/537.1",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/536.5 (KHTML, like Gecko) Chrome/19.0.1084.9 Safari/536.5",
+        "Mozilla/5.0 (Windows NT 6.0) AppleWebKit/536.5 (KHTML, like Gecko) Chrome/19.0.1084.36 Safari/536.5",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1063.0 Safari/536.3",
+        "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1063.0 Safari/536.3",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_0) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1063.0 Safari/536.3",
+        "Mozilla/5.0 (Windows NT 6.2) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1062.0 Safari/536.3",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1062.0 Safari/536.3",
+        "Mozilla/5.0 (Windows NT 6.2) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1061.1 Safari/536.3",
+        "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1061.1 Safari/536.3",
+        "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1061.1 Safari/536.3",
+        "Mozilla/5.0 (Windows NT 6.2) AppleWebKit/536.3 (KHTML, like Gecko) Chrome/19.0.1061.0 Safari/536.3",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/535.24 (KHTML, like Gecko) Chrome/19.0.1055.1 Safari/535.24",
+        "Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/535.24 (KHTML, like Gecko) Chrome/19.0.1055.1 Safari/535.24"
+    ]
 
 
 def filter_str(str):
@@ -24,6 +45,16 @@ def uni2utf8(uni_str):
     	return uni_str.encode('utf8')
     logging.warning("编码不是unicode,不需要更改.")
     return uni_str
+
+def sina_lbs():
+    headers = {'User-Agent':random.choice(user_agent_list)}
+    url = "http://int.dpool.sina.com.cn/iplookup/iplookup.php?format=json"
+    recv_json = requests.get(url,headers=headers).json()
+    lbs = {}
+    lbs["country"] = recv_json["country"]
+    lbs["province"] = recv_json["province"]
+    return lbs
+
 
 def get_locate_byip():
     url = "http://2017.ip138.com/ic.asp"
@@ -37,12 +68,11 @@ def get_locate_byip():
         info['locate'] = "获取地址位置失败"
         logging.warning("获取地理位置出错!")
     return info
-
 #百度地图api接口,需要申请ak秘钥，并且一天会现在访问次数
 #获取百度经纬度(&coor=bd09ll)，国家局(coor=gcj02)，设定coor即可
 def get_locate_xy(ak):
-    url = "http://api.map.baidu.com/location/ip?ak={ak}&coor=gcj02".format(ak=ak)
-    headers = {'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36'}
+    url = "http://api.map.baidu.com/location/ip?ak={ak}&coor=bd09ll".format(ak=ak)
+    headers = {'User-Agent':random.choice(user_agent_list)}
     recv = requests.get(url,headers=headers)
     recv_json = recv.json()
     lbs_xy = {}
@@ -55,59 +85,59 @@ def get_locate_xy(ak):
     else:
         logging.error("获取坐标失败!")
         return None
-
-def get_locate_str(ak):
+def baidu_lbs(ak):
+    #can only locate the position to city at most
     lbs_xy = get_locate_xy(ak)
-    #url = "http://api.map.baidu.com/geocoder/v2/?callback=renderReverse&location={x},{y}&output=json&pois=0&ak={ak}".format(x=lbs_xy['x'],y=lbs_xy['y'],ak=ak)
     url = "http://api.map.baidu.com/geocoder/v2/?coordtype=gcj02&location={y},{x}&output=json&pois=0&ak={ak}".format(x=lbs_xy['x'],y=lbs_xy['y'],ak=ak)
-    print url
-    headers = {'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36'}
+    headers = {'User-Agent':random.choice(user_agent_list)}
     recv = requests.get(url,headers=headers)
     recv_json = recv.json()
     return recv_json['result']['formatted_address']
 
 
-#定义一个方法，针对不同的文本（TEXT）回应不同的内容，供text_reply调用
-def response(str):
-    recv_text = uni2utf8(str)
-    if filter_str(recv_text) == "图片":
-        return "图片，你怎么知道我的宝藏？(*￣3￣)╭\n" \
-               "那么请发送：'关键词'+图片\n" \
-               "获取对应的图图~~么么哒~~"
-    elif filter_str(recv_text) == "位置":
-        info = get_locate()
-        word = "我在这里哟 : "+info['locate']
-        return word
-    elif re.match(".+图片",recv_text):
-        word = re.sub("图片","",filter_str(recv_text))
-        f = word_map_jpg(word)
-        return '@img@'+f
-    elif re.findall("好帅",filter_str(recv_text)):
-        word = "不要这么夸人家啦~~~"
-        return word
-    elif re.findall("撒比|萨比",filter_str(recv_text)):
-        word = "日尼玛个香蕉船，牛萨比，特地为你写了这一行代码，就是用来骂你的 ! 牛萨比!"
-        return word
-    elif re.findall("老板",filter_str(recv_text)):
-        word = "老朋友，给你介绍下'听云'，我的非智能小机器人，你可以输入一些别的内容来和他互动~"
-        return word
-    elif re.findall("功能|你是|hello|hi|你好|嘿",filter_str(recv_text)):
-        word = "Hello，我叫听云，暂时只是一段自动回复代码，性别男，居住地在日本～～\n" \
-               "这是我的功能介绍:\n" \
-               "\t1.获取图片\t\t:'关键词'+图片\n" \
-               "\t2.获取金光同人小说\t:'关键词'+故事\n\n" \
-               "我是个以后要称为AI的小程序哦~~"
-        return word
-    elif re.findall("早",filter_str(recv_text)):
-        word = "你也早啊～～"
-        return word
-    elif re.findall("吃了吗",filter_str(recv_text)):
-        word = "我吃饱了哟，你也要吃的饱饱的呀，每天都要元气满满～～"
-        return word
-    else:
-        word = "啦啦啦，输入'功能'和我互动啦，我会告诉你我的名字哟~~"
-        return word
+#保存和关键词相关的文件，并返回文件路径
+def get_doutu_picture(keyword):
+    path = "./Img/"
+    url = "https://www.doutula.com/search?type=photo&more=1&keyword={keyword}&page=1".format(keyword=urllib.quote(keyword))
+    content = requests.get(url,headers={"User-Agent":random.choice(user_agent_list)}).content
+    py_content = PyQuery(content)
+    max_page = py_content('ul[class="pagination"] > li:last').prev().text()
+    signal_img_dir = init_dirs(path,keyword)    #没有就 创建那个关键词的目录，有就返回路径
+    print signal_img_dir
+    page = random.choice(range(int(max_page)))
+    random_url = re.sub("1$",str(page),url)     #随机选取一页
 
+    random_content = requests.get(random_url,headers={"User-Agent":random.choice(user_agent_list)}).content
+    py_content = PyQuery(random_content)
+    all_img = list(py_content('.col-xs-6').items())
+    signal_img = random.choice(all_img)
+    #print signal_img
+    img_url = list(signal_img('img[data-original]').items())[0].attr["data-original"]
+    img_name = signal_img('p').text().encode('utf8').replace(" ","").replace("（","").replace("）","").replace("！","")
+    img_name = re.sub("\w+","",img_name)
+    type_img = re.findall("\w+$",img_url)[0]
+    file_path = save_img(img_url,img_name+"."+type_img,signal_img_dir)
+    return file_path
+
+
+
+
+def init_dirs(path,name):
+    signal_img_dir = path + name
+    # 不存在即创建，再返回目录名，存在直接返回目录名
+    if not os.path.exists(signal_img_dir):
+        os.mkdir(signal_img_dir)
+        return signal_img_dir+"/"
+    return signal_img_dir+"/"
+
+def save_img(img_url, img_name, work_dir):
+    with open(work_dir + img_name, 'wb') as f:
+        content = requests.get(img_url).content
+        f.write(content)
+        f.close()
+    return work_dir+img_name
+
+#若当前路径下存在Img文件夹，且有保存检索关键词（对方输入）的文件夹，即在其中找，默认是在斗图网上找，找到下载存储在本地
 def word_map_jpg(word):
     dir_names = commands.getoutput("ls ./Img").split("\n")
     checked_dirs = []
@@ -123,8 +153,86 @@ def word_map_jpg(word):
     #f = open("./Img/{dir_name}/{img_name}".format(dir_name=one_dir,img_name=img_name),'r').read()
     return path
 
+#获取煎蛋网段子页面的随机内容，在前十页中
+def get_jiandan():
+    url = "https://jandan.net/duan"
+    content = requests.get(url,headers={"User-Agent":random.choice(user_agent_list)}).content
+    py_content = PyQuery(content)
+    max_page = list(py_content('.current-comment-page').items())[0].text()
+    max_page = int(re.search("\d+",max_page).group())
 
-@itchat.msg_register([TEXT])
+    random_page = random.choice(range(max_page-20,max_page))
+    random_url = "https://jandan.net/duan/page-{page}#comments".format(page=random_page)
+    content = requests.get(random_url,headers={"User-Agent":random.choice(user_agent_list)}).content
+    py_content = PyQuery(content)
+    all_comments = list(py_content('.commentlist > li > div > div').items())
+    signal_comment = random.choice(all_comments)
+    author = signal_comment('.author > strong').text()
+    text = signal_comment('.text > p').text()
+    info = []
+    info.append(author)
+    info.append(text)
+    return info
+
+
+
+
+#定义一个方法，针对不同的文本（TEXT）回应不同的内容，供text_reply调用
+def response(str):
+    recv_text = uni2utf8(str)
+    if filter_str(recv_text) == "图片":
+        return "图片，你怎么知道我的宝藏？(*￣3￣)╭\n" \
+               "那么请发送：'关键词'+图片\n" \
+               "获取对应的图图~~么么哒~~"
+    elif filter_str(recv_text) == "位置":
+        #info = get_locate_str()
+        info = sina_lbs()
+        word = "我在这里哟 : "+info["country"]+info["province"]
+        return word
+    elif re.match(".+图片",recv_text):
+        word = re.sub("图片","",recv_text.encode("utf8"))
+        try:
+            f = get_doutu_picture(word)
+        except Exception,e:
+            f = "None"
+        if f != "None":
+            return '@img@'+f
+        else:
+            return "sorry，your keyword looks like something error ~"
+    elif re.match("段子",recv_text):
+        try:
+            f = get_jiandan()
+        except Exception,e:
+            f = "None"
+        if f != "None":
+            return f[1]+"\n\n\nby\t"+f[0]
+        else:
+            return "sorry，there looks something error ~"
+    elif re.findall("撒比|萨比",filter_str(recv_text)):
+        word = "日尼玛个香蕉船，牛萨比，特地为你写了这一行代码，就是用来骂你的 ! 牛萨比!"
+        return word
+    elif re.findall("老板",filter_str(recv_text)):
+        word = "老朋友，给你介绍下'tingyun'，我的非智能小机器人，你可以输入一些别的内容来和他互动~"
+        return word
+    elif re.findall("功能|你是|hello|hi|你好|嘿",filter_str(recv_text)):
+        word = "Hi, my name is tingyun，now just an automatic reply code, a litter boy, living in the {location}\n" \
+               "there is something i can do for you:\n" \
+               "1. get picture   :'keyword'+图片\n" \
+               "2. get some joke : 段子         \n" \
+               "\nI would like to be something people called AI in the future, wait me!".format(location=sina_lbs()['country']+sina_lbs()['province'])
+        return word
+    elif re.findall("早",filter_str(recv_text)):
+        word = "你也早啊～～"
+        return word
+    elif re.findall("吃了吗",filter_str(recv_text)):
+        word = "我吃饱了哟，你也要吃的饱饱的呀，每天都要元气满满～～"
+        return word
+    else:
+        word = "oh, you find me. then type \"功能\" play with me，i will tell you something secret~~"
+        return word
+
+
+@itchat.msg_register([TEXT,PICTURE])
 def text_reply(msg):
     recv_content = msg['Text']
     word = response(recv_content)
@@ -143,7 +251,7 @@ def text_reply(msg):
             msg_content = r"" + location
         return "嘿，我找到你了～～你四不四在:\n"+msg_content.encode("utf8")
 
-
+'''
 @itchat.msg_register([PICTURE, RECORDING, ATTACHMENT, VIDEO])
 def download_files(msg):
     msg.download(msg.fileName)
@@ -151,27 +259,11 @@ def download_files(msg):
         PICTURE: 'img',
         VIDEO: 'vid', }.get(msg.type, 'fil')
     return '@%s@%s' % (typeSymbol, msg.fileName)
-
+'''
 
 if __name__=="__main__":
-    #itchat.auto_login(enableCmdQR=2,hotReload=True)
-    #itchat.run(debug=True)
+    itchat.auto_login(enableCmdQR=2,hotReload=True)
+    itchat.run(debug=True)
     ak = ""
-    print get_locate_str(ak)
-
-    #print get_locate()
-    #b="功能"
-    #print re.findall("功能|你是|hello|hi|你好|嘿",filter_str(b))
-
-    #print word_map_jpg("金馆长")
-    '''
-    nima = {
-        'a': 'a',
-        'b': 'b',
-        'd': 'c',
-        'e': 'd',
-    }.get("a", 'picture_5.jpg')
-    print '@img@' + nima
-    '''
 
 
